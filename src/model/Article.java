@@ -14,6 +14,7 @@ public class Article {
     private int seuilAlerte;
     private LocalDateTime dateCreation;
     private LocalDateTime dateModification;
+    private int quantiteSelectionnee = 1;
 
     public Article(int id, String reference, String nom, String description, String categorie,
                    double prixVente, double prixAchat, int quantiteEnStock, int seuilAlerte,
@@ -86,5 +87,13 @@ public class Article {
 
     public LocalDateTime getDateModification() {
         return dateModification;
+    }
+
+    public int getQuantiteSelectionnee() {
+        return quantiteSelectionnee;
+    }
+
+    public void setQuantiteSelectionnee(int quantite) {
+        this.quantiteSelectionnee = quantite;
     }
 }

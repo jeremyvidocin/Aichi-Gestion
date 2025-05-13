@@ -40,6 +40,19 @@ CREATE DEFINER=`root`@`localhost` PROCEDURE `ajouter_article_commande` (IN `p_id
     VALUES (p_id_commande, p_id_article, v_reference, v_designation, p_quantite, v_prix_unitaire)
     ON DUPLICATE KEY UPDATE 
         Quantite = Quantite + p_quantite;
+
+    -- Mettre à jour les totaux de la commande
+    UPDATE commandes c
+    SET c.MontantHT = (
+        SELECT SUM(l.MontantHT) FROM lignes_commande l WHERE l.ID_Commande = c.ID
+    ),
+    c.MontantTVA = (
+        SELECT SUM(l.MontantTVA) FROM lignes_commande l WHERE l.ID_Commande = c.ID
+    ),
+    c.MontantTTC = (
+        SELECT SUM(l.MontantTTC) FROM lignes_commande l WHERE l.ID_Commande = c.ID
+    )
+    WHERE c.ID = p_id_commande;
 END$$
 
 CREATE DEFINER=`root`@`localhost` PROCEDURE `changer_statut_commande` (IN `p_id_commande` INT, IN `p_code_statut` VARCHAR(20), IN `p_commentaire` TEXT, IN `p_id_utilisateur` INT)   BEGIN
@@ -236,55 +249,6 @@ DELIMITER ;
 -- --------------------------------------------------------
 
 --
--- Structure de la table `commande_articles`
---
-
-CREATE TABLE `commande_articles` (
-  `id_commande` int(11) NOT NULL,
-  `id_article` int(11) NOT NULL,
-  `quantite` int(11) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
-
---
--- Déchargement des données de la table `commande_articles`
---
-
-INSERT INTO `commande_articles` (`id_commande`, `id_article`, `quantite`) VALUES
-(1, 1, 2),
-(1, 3, 1),
-(2, 2, 3),
-(2, 4, 1),
-(3, 1, 2),
-(3, 5, 4);
-
--- --------------------------------------------------------
-
---
--- Structure de la table `detailscommande`
---
-
-CREATE TABLE `detailscommande` (
-  `ID` int(11) NOT NULL,
-  `ID_Commande` int(11) DEFAULT NULL,
-  `ID_Article` int(11) DEFAULT NULL,
-  `Quantite` int(11) DEFAULT NULL,
-  `PrixUnitaire` decimal(10,2) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Déchargement des données de la table `detailscommande`
---
-
-INSERT INTO `detailscommande` (`ID`, `ID_Commande`, `ID_Article`, `Quantite`, `PrixUnitaire`) VALUES
-(1, 1, 1, 2, 1200.00),
-(2, 1, 2, 1, 800.00),
-(3, 2, 3, 1, 300.00),
-(4, 2, 4, 2, 150.00),
-(5, 3, 5, 3, 50.00);
-
--- --------------------------------------------------------
-
---
 -- Structure de la table `factures`
 --
 
@@ -348,7 +312,8 @@ INSERT INTO `lignes_commande` (`ID`, `ID_Commande`, `ID_Article`, `Reference`, `
 -- Déclencheurs `lignes_commande`
 --
 DELIMITER $$
-CREATE TRIGGER `after_delete_ligne_commande` AFTER DELETE ON `lignes_commande` FOR EACH ROW BEGIN
+CREATE TRIGGER after_delete_ligne_commande AFTER DELETE ON `lignes_commande` FOR EACH ROW 
+BEGIN
     DECLARE stock_avant INT;
     
     -- Récupérer le stock actuel
@@ -362,11 +327,23 @@ CREATE TRIGGER `after_delete_ligne_commande` AFTER DELETE ON `lignes_commande` F
     
     -- Mettre à jour le stock dans la table articles
     UPDATE articles SET QuantiteEnStock = stock_avant + OLD.Quantite WHERE ID = OLD.ID_Article;
-END
-$$
-DELIMITER ;
-DELIMITER $$
-CREATE TRIGGER `after_insert_ligne_commande` AFTER INSERT ON `lignes_commande` FOR EACH ROW BEGIN
+    
+    -- Mettre à jour les totaux de la commande
+    UPDATE commandes c
+    SET c.MontantHT = COALESCE((
+        SELECT SUM(l.MontantHT) FROM lignes_commande l WHERE l.ID_Commande = c.ID
+    ), 0),
+    c.MontantTVA = COALESCE((
+        SELECT SUM(l.MontantTVA) FROM lignes_commande l WHERE l.ID_Commande = c.ID
+    ), 0),
+    c.MontantTTC = COALESCE((
+        SELECT SUM(l.MontantTTC) FROM lignes_commande l WHERE l.ID_Commande = c.ID
+    ), 0)
+    WHERE c.ID = OLD.ID_Commande;
+END$$
+
+CREATE TRIGGER after_insert_ligne_commande AFTER INSERT ON `lignes_commande` FOR EACH ROW 
+BEGIN
     DECLARE stock_avant INT;
     
     -- Récupérer le stock actuel
@@ -379,11 +356,8 @@ CREATE TRIGGER `after_insert_ligne_commande` AFTER INSERT ON `lignes_commande` F
     
     -- Mettre à jour le stock dans la table articles
     UPDATE articles SET QuantiteEnStock = stock_avant - NEW.Quantite WHERE ID = NEW.ID_Article;
-END
-$$
-DELIMITER ;
-DELIMITER $$
-CREATE TRIGGER `after_modify_ligne_commande_update_totals` AFTER INSERT ON `lignes_commande` FOR EACH ROW BEGIN
+    
+    -- Mettre à jour les totaux de la commande
     UPDATE commandes c
     SET c.MontantHT = (
         SELECT SUM(l.MontantHT) FROM lignes_commande l WHERE l.ID_Commande = c.ID
@@ -395,11 +369,10 @@ CREATE TRIGGER `after_modify_ligne_commande_update_totals` AFTER INSERT ON `lign
         SELECT SUM(l.MontantTTC) FROM lignes_commande l WHERE l.ID_Commande = c.ID
     )
     WHERE c.ID = NEW.ID_Commande;
-END
-$$
-DELIMITER ;
-DELIMITER $$
-CREATE TRIGGER `after_update_ligne_commande` AFTER UPDATE ON `lignes_commande` FOR EACH ROW BEGIN
+END$$
+
+CREATE TRIGGER after_update_ligne_commande AFTER UPDATE ON `lignes_commande` FOR EACH ROW 
+BEGIN
     DECLARE stock_avant INT;
     DECLARE diff_quantite INT;
     
@@ -423,8 +396,21 @@ CREATE TRIGGER `after_update_ligne_commande` AFTER UPDATE ON `lignes_commande` F
         -- Mettre à jour le stock dans la table articles
         UPDATE articles SET QuantiteEnStock = stock_avant - diff_quantite WHERE ID = NEW.ID_Article;
     END IF;
-END
-$$
+    
+    -- Mettre à jour les totaux de la commande
+    UPDATE commandes c
+    SET c.MontantHT = (
+        SELECT SUM(l.MontantHT) FROM lignes_commande l WHERE l.ID_Commande = c.ID
+    ),
+    c.MontantTVA = (
+        SELECT SUM(l.MontantTVA) FROM lignes_commande l WHERE l.ID_Commande = c.ID
+    ),
+    c.MontantTTC = (
+        SELECT SUM(l.MontantTTC) FROM lignes_commande l WHERE l.ID_Commande = c.ID
+    )
+    WHERE c.ID = NEW.ID_Commande;
+END$$
+
 DELIMITER ;
 
 -- --------------------------------------------------------
@@ -585,21 +571,6 @@ ALTER TABLE `commandes`
   ADD KEY `ID_Utilisateur` (`ID_Utilisateur`);
 
 --
--- Index pour la table `commande_articles`
---
-ALTER TABLE `commande_articles`
-  ADD PRIMARY KEY (`id_commande`,`id_article`),
-  ADD KEY `id_article` (`id_article`);
-
---
--- Index pour la table `detailscommande`
---
-ALTER TABLE `detailscommande`
-  ADD PRIMARY KEY (`ID`),
-  ADD KEY `ID_Commande` (`ID_Commande`),
-  ADD KEY `ID_Article` (`ID_Article`);
-
---
 -- Index pour la table `factures`
 --
 ALTER TABLE `factures`
@@ -681,12 +652,6 @@ ALTER TABLE `commandes`
   MODIFY `ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
--- AUTO_INCREMENT pour la table `detailscommande`
---
-ALTER TABLE `detailscommande`
-  MODIFY `ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
-
---
 -- AUTO_INCREMENT pour la table `factures`
 --
 ALTER TABLE `factures`
@@ -745,20 +710,6 @@ ALTER TABLE `commandes`
   ADD CONSTRAINT `commandes_ibfk_1` FOREIGN KEY (`ID_Client`) REFERENCES `clients` (`ID`),
   ADD CONSTRAINT `commandes_ibfk_2` FOREIGN KEY (`ID_Statut`) REFERENCES `statuts_commande` (`ID`),
   ADD CONSTRAINT `commandes_ibfk_3` FOREIGN KEY (`ID_Utilisateur`) REFERENCES `utilisateurs` (`ID`);
-
---
--- Contraintes pour la table `commande_articles`
---
-ALTER TABLE `commande_articles`
-  ADD CONSTRAINT `commande_articles_ibfk_1` FOREIGN KEY (`id_commande`) REFERENCES `commandes` (`ID`),
-  ADD CONSTRAINT `commande_articles_ibfk_2` FOREIGN KEY (`id_article`) REFERENCES `articles` (`ID`);
-
---
--- Contraintes pour la table `detailscommande`
---
-ALTER TABLE `detailscommande`
-  ADD CONSTRAINT `detailscommande_ibfk_1` FOREIGN KEY (`ID_Commande`) REFERENCES `commandes` (`ID`),
-  ADD CONSTRAINT `detailscommande_ibfk_2` FOREIGN KEY (`ID_Article`) REFERENCES `articles` (`ID`);
 
 --
 -- Contraintes pour la table `factures`

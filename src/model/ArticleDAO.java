@@ -14,13 +14,25 @@ public class ArticleDAO {
 
     public List<Article> getAllArticles() {
         List<Article> articles = new ArrayList<>();
-        String query = "SELECT * FROM articles";
+        String query = "SELECT * FROM articles ORDER BY Nom";
 
         try (Statement stmt = connection.createStatement();
              ResultSet rs = stmt.executeQuery(query)) {
 
             while (rs.next()) {
-                articles.add(createArticleFromResultSet(rs));
+                articles.add(new Article(
+                    rs.getInt("ID"),
+                    rs.getString("Reference"),
+                    rs.getString("Nom"),
+                    rs.getString("Description"),
+                    rs.getString("Categorie"),
+                    rs.getDouble("PrixVente"),
+                    rs.getDouble("PrixAchat"),
+                    rs.getInt("QuantiteEnStock"),
+                    rs.getInt("SeuilAlerte"),
+                    rs.getTimestamp("DateCreation") != null ? rs.getTimestamp("DateCreation").toLocalDateTime() : null,
+                    rs.getTimestamp("DateModification") != null ? rs.getTimestamp("DateModification").toLocalDateTime() : null
+                ));
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -28,34 +40,31 @@ public class ArticleDAO {
         return articles;
     }
 
-    private Article createArticleFromResultSet(ResultSet rs) throws SQLException {
-        return new Article(
-                rs.getInt("ID"),
-                rs.getString("Reference"),
-                rs.getString("Nom"),
-                rs.getString("Description"),
-                rs.getString("Categorie"),
-                rs.getDouble("PrixVente"),
-                rs.getObject("PrixAchat") != null ? rs.getDouble("PrixAchat") : 0,
-                rs.getInt("QuantiteEnStock"),
-                rs.getInt("SeuilAlerte"),
-                rs.getTimestamp("DateCreation") != null ?
-                        rs.getTimestamp("DateCreation").toLocalDateTime() : null,
-                rs.getTimestamp("DateModification") != null ?
-                        rs.getTimestamp("DateModification").toLocalDateTime() : null
-        );
-    }
-
-    public List<Article> searchArticlesByName(String name) {
+    public List<Article> searchArticles(String keyword) {
         List<Article> articles = new ArrayList<>();
-        String query = "SELECT * FROM articles WHERE Nom LIKE ?";
+        String query = "SELECT * FROM articles WHERE Nom LIKE ? OR Reference LIKE ? OR Description LIKE ? ORDER BY Nom";
 
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
-            stmt.setString(1, "%" + name + "%");
+            String searchPattern = "%" + keyword + "%";
+            stmt.setString(1, searchPattern);
+            stmt.setString(2, searchPattern);
+            stmt.setString(3, searchPattern);
             ResultSet rs = stmt.executeQuery();
 
             while (rs.next()) {
-                articles.add(createArticleFromResultSet(rs));
+                articles.add(new Article(
+                    rs.getInt("ID"),
+                    rs.getString("Reference"),
+                    rs.getString("Nom"),
+                    rs.getString("Description"),
+                    rs.getString("Categorie"),
+                    rs.getDouble("PrixVente"),
+                    rs.getDouble("PrixAchat"),
+                    rs.getInt("QuantiteEnStock"),
+                    rs.getInt("SeuilAlerte"),
+                    rs.getTimestamp("DateCreation") != null ? rs.getTimestamp("DateCreation").toLocalDateTime() : null,
+                    rs.getTimestamp("DateModification") != null ? rs.getTimestamp("DateModification").toLocalDateTime() : null
+                ));
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -150,7 +159,19 @@ public class ArticleDAO {
             stmt.setInt(1, id);
             ResultSet rs = stmt.executeQuery();
             if (rs.next()) {
-                return createArticleFromResultSet(rs);
+                return new Article(
+                    rs.getInt("ID"),
+                    rs.getString("Reference"),
+                    rs.getString("Nom"),
+                    rs.getString("Description"),
+                    rs.getString("Categorie"),
+                    rs.getDouble("PrixVente"),
+                    rs.getDouble("PrixAchat"),
+                    rs.getInt("QuantiteEnStock"),
+                    rs.getInt("SeuilAlerte"),
+                    rs.getTimestamp("DateCreation") != null ? rs.getTimestamp("DateCreation").toLocalDateTime() : null,
+                    rs.getTimestamp("DateModification") != null ? rs.getTimestamp("DateModification").toLocalDateTime() : null
+                );
             }
         } catch (SQLException e) {
             e.printStackTrace();

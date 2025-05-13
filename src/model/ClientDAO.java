@@ -28,6 +28,29 @@ public class ClientDAO {
         return clients;
     }
 
+    public List<Client> searchClientsByName(String name) {
+        List<Client> clients = new ArrayList<>();
+        String query = "SELECT * FROM clients WHERE Nom LIKE ?";
+
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setString(1, "%" + name + "%");
+            ResultSet rs = stmt.executeQuery();
+
+            while (rs.next()) {
+                clients.add(new Client(
+                    rs.getInt("ID"),
+                    rs.getString("Nom"),
+                    rs.getString("Adresse"),
+                    rs.getString("Telephone"),
+                    rs.getString("Email")
+                ));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return clients;
+    }
+
     private Client createClientFromResultSet(ResultSet rs) throws SQLException {
         LocalDateTime dateInscription = rs.getTimestamp("DateInscription") != null ?
                 rs.getTimestamp("DateInscription").toLocalDateTime() : null;

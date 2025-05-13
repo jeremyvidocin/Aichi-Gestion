@@ -47,7 +47,7 @@ public class ArticlesController {
 
     private void searchArticle() {
         String keyword = articlesView.getSearchField().getText();
-        List<Article> articles = articleDAO.searchArticlesByName(keyword);
+        List<Article> articles = articleDAO.searchArticles(keyword);
         articlesView.updateTable(articles);
     }
 

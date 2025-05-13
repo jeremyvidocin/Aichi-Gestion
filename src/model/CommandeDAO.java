@@ -13,13 +13,27 @@ public class CommandeDAO {
 
     public List<Commande> getAllCommandes() {
         List<Commande> commandes = new ArrayList<>();
-        String query = "SELECT * FROM commandes";
+        String query = "SELECT c.*, cl.Nom as NomClient " +
+                      "FROM commandes c " +
+                      "LEFT JOIN clients cl ON c.ID_Client = cl.ID " +
+                      "ORDER BY c.DateCommande DESC";
 
         try (Statement stmt = connection.createStatement();
              ResultSet rs = stmt.executeQuery(query)) {
 
             while (rs.next()) {
-                commandes.add(createCommandeFromResultSet(rs));
+                commandes.add(new Commande(
+                    rs.getInt("ID"),
+                    rs.getString("Numero"),
+                    rs.getInt("ID_Client"),
+                    rs.getTimestamp("DateCommande"),
+                    rs.getString("Statut"),
+                    rs.getDouble("MontantHT"),
+                    rs.getDouble("MontantTVA"),
+                    rs.getDouble("MontantTTC"),
+                    rs.getString("NomClient"),
+                    null
+                ));
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -219,5 +233,42 @@ public class CommandeDAO {
             e.printStackTrace();
         }
         return lignes;
+    }
+
+    public List<Commande> searchCommandes(String keyword) {
+        List<Commande> commandes = new ArrayList<>();
+        String query = "SELECT c.*, cl.Nom as NomClient " +
+                      "FROM commandes c " +
+                      "LEFT JOIN clients cl ON c.ID_Client = cl.ID " +
+                      "WHERE c.Numero LIKE ? " +
+                      "OR cl.Nom LIKE ? " +
+                      "OR c.Statut LIKE ? " +
+                      "ORDER BY c.DateCommande DESC";
+
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            String searchPattern = "%" + keyword + "%";
+            stmt.setString(1, searchPattern);
+            stmt.setString(2, searchPattern);
+            stmt.setString(3, searchPattern);
+            ResultSet rs = stmt.executeQuery();
+
+            while (rs.next()) {
+                commandes.add(new Commande(
+                    rs.getInt("ID"),
+                    rs.getString("Numero"),
+                    rs.getInt("ID_Client"),
+                    rs.getTimestamp("DateCommande"),
+                    rs.getString("Statut"),
+                    rs.getDouble("MontantHT"),
+                    rs.getDouble("MontantTVA"),
+                    rs.getDouble("MontantTTC"),
+                    rs.getString("NomClient"),
+                    null
+                ));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return commandes;
     }
 }

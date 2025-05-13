@@ -7,6 +7,10 @@ import model.LigneCommande;
 import model.User;
 import views.CommandesView;
 import utils.PermissionManager;
+import views.AddEditCommandeDialog;
+import model.ClientDAO;
+import model.Client;
+import model.Article;
 
 import javax.swing.*;
 import java.sql.Date;
@@ -14,6 +18,9 @@ import java.util.List;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.sql.CallableStatement;
+import java.sql.Types;
+import javax.swing.table.DefaultTableModel;
 
 public class CommandesController {
     private CommandesView commandesView;
@@ -30,9 +37,18 @@ public class CommandesController {
         loadCommandes();
 
         // Ajout des listeners pour les boutons
+        commandesView.getSearchButton().addActionListener(e -> searchCommande());
         commandesView.getAddButton().addActionListener(e -> addCommande());
         commandesView.getEditButton().addActionListener(e -> editCommande());
         commandesView.getDeleteButton().addActionListener(e -> deleteCommande());
+        commandesView.getBackButton().addActionListener(e -> backMenu());
+
+        // Ajout du listener pour la sélection d'une commande
+        commandesView.getCommandesTable().getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                loadCommandeDetails();
+            }
+        });
 
         // Désactiver les boutons si l'utilisateur n'a pas les permissions
         if (!PermissionManager.canModifyData(currentUser)) {
@@ -51,56 +67,114 @@ public class CommandesController {
         commandesView.updateTable(commandes);
     }
 
+    private void searchCommande() {
+        String keyword = commandesView.getSearchField().getText();
+        List<Commande> commandes = commandeDAO.searchCommandes(keyword);
+        commandesView.updateTable(commandes);
+    }
+
     public void addCommande() {
         if (!PermissionManager.canAddData(currentUser)) {
-            JOptionPane.showMessageDialog(commandesView, "Vous n'avez pas les permissions nécessaires pour ajouter des commandes.", "Permission refusée", JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(commandesView, 
+                "Vous n'avez pas les permissions nécessaires pour ajouter des commandes.", 
+                "Permission refusée", 
+                JOptionPane.WARNING_MESSAGE);
             return;
         }
 
-        String clientIdStr = JOptionPane.showInputDialog("ID du client :");
-        String commentaire = JOptionPane.showInputDialog("Commentaire :");
+        AddEditCommandeDialog dialog = new AddEditCommandeDialog(commandesView, "Nouvelle commande", true);
+        
+        // Charger la liste des clients
+        ClientDAO clientDAO = new ClientDAO();
+        dialog.setClients(clientDAO.getAllClients());
+        
+        dialog.setVisible(true);
 
-        try {
-            int clientId = Integer.parseInt(clientIdStr);
-            if (commandeDAO.addCommande(clientId, commentaire, 0)) {
-                JOptionPane.showMessageDialog(commandesView, "Commande ajoutée !");
+        if (dialog.isValidated()) {
+            Client selectedClient = dialog.getSelectedClient();
+            String commentaire = dialog.getCommentaire();
+            List<Article> articles = dialog.getSelectedArticles();
 
-                int ajouterArticle = JOptionPane.showConfirmDialog(commandesView,
-                        "Voulez-vous ajouter un article à cette commande?",
-                        "Ajouter un article",
-                        JOptionPane.YES_NO_OPTION);
+            try {
+                connection.setAutoCommit(false); // Début de la transaction
 
-                if (ajouterArticle == JOptionPane.YES_OPTION) {
-                    String articleIdStr = JOptionPane.showInputDialog("ID de l'article :");
-                    String quantiteStr = JOptionPane.showInputDialog("Quantité :");
-
-                    try {
-                        int articleId = Integer.parseInt(articleIdStr);
-                        int quantite = Integer.parseInt(quantiteStr);
-
-                        List<Commande> commandes = commandeDAO.getAllCommandes();
-                        int lastId = commandes.get(commandes.size() - 1).getId();
-
-                        if (commandeDAO.ajouterArticleCommande(lastId, articleId, quantite)) {
-                            JOptionPane.showMessageDialog(commandesView, "Article ajouté à la commande !");
-                        } else {
-                            JOptionPane.showMessageDialog(commandesView,
-                                    "Erreur lors de l'ajout de l'article.",
-                                    "Erreur", JOptionPane.ERROR_MESSAGE);
-                        }
-                    } catch (NumberFormatException e) {
-                        JOptionPane.showMessageDialog(commandesView,
-                                "Veuillez entrer des nombres valides.",
-                                "Erreur", JOptionPane.ERROR_MESSAGE);
-                    }
+                // Créer la commande
+                int newCommandeId = -1;
+                String createCommandeQuery = "{call creer_commande(?, ?, ?)}";
+                try (CallableStatement cs = connection.prepareCall(createCommandeQuery)) {
+                    cs.setInt(1, selectedClient.getId());
+                    cs.setString(2, commentaire);
+                    cs.registerOutParameter(3, Types.INTEGER);
+                    cs.execute();
+                    newCommandeId = cs.getInt(3);
                 }
 
-                loadCommandes();
-            } else {
-                JOptionPane.showMessageDialog(commandesView, "Erreur lors de l'ajout.", "Erreur", JOptionPane.ERROR_MESSAGE);
+                if (newCommandeId > 0) {
+                    // Mettre à jour l'utilisateur
+                    String updateUserQuery = "UPDATE commandes SET ID_Utilisateur = ? WHERE ID = ?";
+                    try (PreparedStatement ps = connection.prepareStatement(updateUserQuery)) {
+                        ps.setInt(1, currentUser.getId());
+                        ps.setInt(2, newCommandeId);
+                        ps.executeUpdate();
+                    }
+
+                    // Ajouter les articles
+                    boolean success = true;
+                    for (Article article : articles) {
+                        if (!commandeDAO.ajouterArticleCommande(newCommandeId, article.getId(), article.getQuantiteSelectionnee())) {
+                            success = false;
+                            break;
+                        }
+                    }
+
+                    if (success) {
+                        connection.commit(); // Valider la transaction
+                        JOptionPane.showMessageDialog(commandesView, "Commande ajoutée avec succès !");
+                        loadCommandes();
+                        
+                        // Sélectionner la nouvelle commande dans la table
+                        DefaultTableModel model = (DefaultTableModel) commandesView.getCommandesTable().getModel();
+                        for (int i = 0; i < model.getRowCount(); i++) {
+                            if ((int)model.getValueAt(i, 0) == newCommandeId) {
+                                commandesView.getCommandesTable().setRowSelectionInterval(i, i);
+                                break;
+                            }
+                        }
+                        
+                        // Charger les détails de la nouvelle commande
+                        loadCommandeDetails();
+                    } else {
+                        connection.rollback(); // Annuler la transaction
+                        JOptionPane.showMessageDialog(commandesView,
+                            "Erreur lors de l'ajout des articles à la commande.",
+                            "Erreur",
+                            JOptionPane.ERROR_MESSAGE);
+                    }
+                } else {
+                    connection.rollback(); // Annuler la transaction
+                    JOptionPane.showMessageDialog(commandesView,
+                        "Erreur lors de la création de la commande.",
+                        "Erreur",
+                        JOptionPane.ERROR_MESSAGE);
+                }
+            } catch (Exception e) {
+                try {
+                    connection.rollback(); // Annuler la transaction en cas d'erreur
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                }
+                e.printStackTrace();
+                JOptionPane.showMessageDialog(commandesView,
+                    "Une erreur est survenue : " + e.getMessage(),
+                    "Erreur",
+                    JOptionPane.ERROR_MESSAGE);
+            } finally {
+                try {
+                    connection.setAutoCommit(true); // Rétablir l'auto-commit
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
             }
-        } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(commandesView, "Veuillez entrer un ID de client valide.", "Erreur", JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -289,6 +363,19 @@ public class CommandesController {
             }
         } else {
             JOptionPane.showMessageDialog(commandesView, "Veuillez sélectionner une commande.", "Attention", JOptionPane.WARNING_MESSAGE);
+        }
+    }
+
+    private void backMenu() {
+        commandesView.dispose();
+    }
+
+    private void loadCommandeDetails() {
+        int selectedRow = commandesView.getCommandesTable().getSelectedRow();
+        if (selectedRow != -1) {
+            int commandeId = (int) commandesView.getCommandesTable().getValueAt(selectedRow, 0);
+            List<LigneCommande> lignes = commandeDAO.getLignesCommande(commandeId);
+            commandesView.updateDetailsTable(lignes);
         }
     }
 }

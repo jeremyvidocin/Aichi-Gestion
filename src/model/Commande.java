@@ -20,6 +20,8 @@ public class Commande {
     private String commentaire;
     private String adresseLivraison;
     private int idUtilisateur;
+    private String nomClient;
+    private String nomUtilisateur;
 
     public Commande(int id, String numero, String reference, int idClient, Date dateCommande,
                     Date dateValidation, Date dateExpedition, Date dateLivraison,
@@ -52,6 +54,35 @@ public class Commande {
         this.idClient = idClient;
         this.dateCommande = date;
         this.statut = statut;
+    }
+
+    // Constructeur pour la recherche de commandes
+    public Commande(int id, String numero, int idClient, Date dateCommande, String statut,
+                   double montantHT, double montantTVA, double montantTTC) {
+        this.id = id;
+        this.numero = numero;
+        this.idClient = idClient;
+        this.dateCommande = dateCommande;
+        this.statut = statut;
+        this.montantHT = montantHT;
+        this.montantTVA = montantTVA;
+        this.montantTTC = montantTTC;
+    }
+
+    // Constructeur pour la recherche de commandes avec informations détaillées
+    public Commande(int id, String numero, int idClient, Date dateCommande, String statut,
+                   double montantHT, double montantTVA, double montantTTC,
+                   String nomClient, String nomUtilisateur) {
+        this.id = id;
+        this.numero = numero;
+        this.idClient = idClient;
+        this.dateCommande = dateCommande;
+        this.statut = statut;
+        this.montantHT = montantHT;
+        this.montantTVA = montantTVA;
+        this.montantTTC = montantTTC;
+        this.nomClient = nomClient;
+        this.nomUtilisateur = nomUtilisateur;
     }
 
     public int getId() {
@@ -125,5 +156,13 @@ public class Commande {
     // Pour compatibilité avec le code existant
     public Date getDate() {
         return dateCommande;
+    }
+
+    public String getNomClient() {
+        return nomClient;
+    }
+
+    public String getNomUtilisateur() {
+        return nomUtilisateur;
     }
 }

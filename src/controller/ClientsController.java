@@ -22,6 +22,7 @@ public class ClientsController {
         loadClients(); // Charge les clients lors de l'initialisation
 
         // Ajout des listeners pour les boutons
+        clientsView.getSearchButton().addActionListener(e -> searchClient());
         clientsView.getAddButton().addActionListener(e -> addClient());
         clientsView.getEditButton().addActionListener(e -> editClient());
         clientsView.getDeleteButton().addActionListener(e -> deleteClient());
@@ -42,6 +43,12 @@ public class ClientsController {
     private void loadClients() {
         List<Client> clients = clientDAO.getAllClients();
         clientsView.updateTable(clients); // Vous devez créer cette méthode dans ClientsView
+    }
+
+    private void searchClient() {
+        String keyword = clientsView.getSearchField().getText();
+        List<Client> clients = clientDAO.searchClientsByName(keyword);
+        clientsView.updateTable(clients);
     }
 
     public void addClient() {

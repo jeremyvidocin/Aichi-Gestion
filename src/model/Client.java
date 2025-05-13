@@ -106,4 +106,20 @@ public class Client {
         }
         return nom;
     }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(nom);
+        
+        if (prenom != null && !prenom.isEmpty()) {
+            sb.append(" ").append(prenom);
+        }
+        
+        if (societe != null && !societe.isEmpty()) {
+            sb.append(" (").append(societe).append(")");
+        }
+        
+        return sb.toString();
+    }
 }

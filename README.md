@@ -36,7 +36,7 @@ cd Aichi-Gestion
 4. **Importer le fichier SQL** :
    - Dans phpMyAdmin, sélectionnez la base de données `aichi_box`.
    - Allez dans l'onglet **Importer**.
-   - Cliquez sur **Choisir un fichier** et sélectionnez le fichier SQL situé dans `src/aichi_box (5).sql` du projet.
+   - Cliquez sur **Choisir un fichier** et sélectionnez le fichier SQL situé dans `src/aichi_box.sql` du projet.
    - Cliquez sur **Exécuter** pour importer les tables et les données.
 
 ---

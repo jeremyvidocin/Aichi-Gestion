@@ -75,8 +75,8 @@ public class ArticleDAO {
     public boolean addArticle(String reference, String nom, String description, String categorie,
                               double prixVente, double prixAchat, int quantiteEnStock, int seuilAlerte) {
         String query = "INSERT INTO articles (Reference, Nom, Description, Categorie, PrixVente, " +
-                "PrixAchat, QuantiteEnStock, SeuilAlerte) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+                "PrixAchat, QuantiteEnStock, SeuilAlerte, DateCreation) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)";
 
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
             stmt.setString(1, reference);
@@ -93,28 +93,14 @@ public class ArticleDAO {
             e.printStackTrace();
         }
         return false;
-    }
-
-    // Pour compatibilité avec le code existant
-    public boolean addArticle(String nom, String description, double prix, int quantiteEnStock) {
-        // Générer une référence automatique
-        String reference = generateReference(nom);
-        return addArticle(reference, nom, description, "Non catégorisé", prix, 0, quantiteEnStock, 5);
-    }
-
-    private String generateReference(String nom) {
-        // Créer une référence simple basée sur le nom et un timestamp
-        String prefix = "ART";
-        String timestamp = String.valueOf(System.currentTimeMillis()).substring(8);
-        return prefix + timestamp;
     }
 
     public boolean updateArticle(int id, String reference, String nom, String description,
-                                 String categorie, double prixVente, double prixAchat,
-                                 int quantiteEnStock, int seuilAlerte) {
+                               String categorie, double prixVente, double prixAchat,
+                               int quantiteEnStock, int seuilAlerte, LocalDateTime dateModification) {
         String query = "UPDATE articles SET Reference = ?, Nom = ?, Description = ?, " +
-                "Categorie = ?, PrixVente = ?, PrixAchat = ?, " +
-                "QuantiteEnStock = ?, SeuilAlerte = ? WHERE ID = ?";
+                      "Categorie = ?, PrixVente = ?, PrixAchat = ?, QuantiteEnStock = ?, " +
+                      "SeuilAlerte = ?, DateModification = ? WHERE ID = ?";
 
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
             stmt.setString(1, reference);
@@ -125,32 +111,56 @@ public class ArticleDAO {
             stmt.setDouble(6, prixAchat);
             stmt.setInt(7, quantiteEnStock);
             stmt.setInt(8, seuilAlerte);
-            stmt.setInt(9, id);
-            stmt.executeUpdate();
-            return true;
+            stmt.setTimestamp(9, java.sql.Timestamp.valueOf(dateModification));
+            stmt.setInt(10, id);
+            
+            return stmt.executeUpdate() > 0;
         } catch (SQLException e) {
             e.printStackTrace();
         }
         return false;
     }
 
-    // Pour compatibilité avec le code existant
-    public boolean updateArticle(int id, String nom, String description, String prix, String quantiteEnStock) {
-        try {
-            double prixDouble = Double.parseDouble(prix);
-            int quantiteInt = Integer.parseInt(quantiteEnStock);
+    public boolean updateArticlePartiel(int id, String nom, String description, Double prix, Integer quantite) {
+        StringBuilder query = new StringBuilder("UPDATE articles SET DateModification = CURRENT_TIMESTAMP");
+        List<Object> params = new ArrayList<>();
 
-            // Récupérer l'article actuel pour sa référence
-            Article article = getArticleById(id);
-            if (article == null) return false;
-
-            return updateArticle(id, article.getReference(), nom, description,
-                    article.getCategorie(), prixDouble, article.getPrixAchat(),
-                    quantiteInt, article.getSeuilAlerte());
-        } catch (NumberFormatException e) {
-            e.printStackTrace();
-            return false;
+        if (nom != null) {
+            query.append(", Nom = ?");
+            params.add(nom);
         }
+        if (description != null) {
+            query.append(", Description = ?");
+            params.add(description);
+        }
+        if (prix != null) {
+            query.append(", PrixVente = ?");
+            params.add(prix);
+        }
+        if (quantite != null) {
+            query.append(", QuantiteEnStock = ?");
+            params.add(quantite);
+        }
+
+        query.append(" WHERE ID = ?");
+        params.add(id);
+
+        try (PreparedStatement stmt = connection.prepareStatement(query.toString())) {
+            for (int i = 0; i < params.size(); i++) {
+                Object param = params.get(i);
+                if (param instanceof String) {
+                    stmt.setString(i + 1, (String) param);
+                } else if (param instanceof Double) {
+                    stmt.setDouble(i + 1, (Double) param);
+                } else if (param instanceof Integer) {
+                    stmt.setInt(i + 1, (Integer) param);
+                }
+            }
+            return stmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return false;
     }
 
     public Article getArticleById(int id) {
@@ -184,11 +194,24 @@ public class ArticleDAO {
 
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
             stmt.setInt(1, id);
-            stmt.executeUpdate();
-            return true;
+            return stmt.executeUpdate() > 0;
         } catch (SQLException e) {
             e.printStackTrace();
         }
         return false;
+    }
+
+    // Pour compatibilité avec le code existant
+    public boolean addArticle(String nom, String description, double prix, int quantiteEnStock) {
+        // Générer une référence automatique
+        String reference = generateReference(nom);
+        return addArticle(reference, nom, description, "Non catégorisé", prix, 0, quantiteEnStock, 5);
+    }
+
+    private String generateReference(String nom) {
+        // Créer une référence simple basée sur le nom et un timestamp
+        String prefix = "ART";
+        String timestamp = String.valueOf(System.currentTimeMillis()).substring(8);
+        return prefix + timestamp;
     }
 }

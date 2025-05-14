@@ -5,6 +5,8 @@ import model.ClientDAO; // Vous devez créer ce modèle pour interagir avec la b
 import model.User;
 import views.ClientsView;
 import utils.PermissionManager;
+import views.ModifierClientDialog;
+import views.AjouterClientDialog;
 
 import javax.swing.*;
 import java.util.List;
@@ -57,18 +59,26 @@ public class ClientsController {
             return;
         }
 
-        // Logique pour ajouter un client
-        String name = JOptionPane.showInputDialog("Nom du client :");
-        String adresse = JOptionPane.showInputDialog("Adresse du client :");
-        String tel = JOptionPane.showInputDialog("Numéro de téléphone du client :");
-        String email = JOptionPane.showInputDialog("Email du client :");
+        AjouterClientDialog dialog = new AjouterClientDialog(clientsView);
+        dialog.setVisible(true);
 
+        if (dialog.isValidated()) {
+            String nom = dialog.getNom();
+            String prenom = dialog.getPrenom();
+            String societe = dialog.getSociete();
+            String adresse = dialog.getAdresse();
+            String codePostal = dialog.getCodePostal();
+            String ville = dialog.getVille();
+            String pays = dialog.getPays();
+            String telephone = dialog.getTelephone();
+            String email = dialog.getEmail();
 
-        if (clientDAO.addClient(name, adresse, tel, email)) {
-            JOptionPane.showMessageDialog(clientsView, "Client ajouté !");
-            loadClients(); // Recharge les clients
-        } else {
-            JOptionPane.showMessageDialog(clientsView, "Erreur lors de l'ajout.", "Erreur", JOptionPane.ERROR_MESSAGE);
+            if (clientDAO.addClient(nom, prenom, societe, adresse, codePostal, ville, pays, telephone, email)) {
+                JOptionPane.showMessageDialog(clientsView, "Client ajouté avec succès !");
+                loadClients(); // Recharge les clients
+            } else {
+                JOptionPane.showMessageDialog(clientsView, "Erreur lors de l'ajout du client.", "Erreur", JOptionPane.ERROR_MESSAGE);
+            }
         }
     }
 
@@ -78,21 +88,35 @@ public class ClientsController {
             return;
         }
 
-        // Logique pour modifier un client
         int row = clientsView.getClientsTable().getSelectedRow();
         if (row != -1) {
-            int id = (int) clientsView.getClientsTable().getValueAt(row, 0); // Récupère l'ID du client sélectionné
-            // Modifier les détails du client
-            String newName = JOptionPane.showInputDialog("Nouveau nom du client :");
-            String newAdr = JOptionPane.showInputDialog("Nouvelle Adresse du client :");
-            String newTel = JOptionPane.showInputDialog("Nouveau numéro de Téléphone du client :");
-            String newEmail = JOptionPane.showInputDialog("Nouvel email du client :");
-
-            if (clientDAO.updateClient(id,newName, newAdr, newTel, newEmail)) {
-                JOptionPane.showMessageDialog(clientsView, "Client modifié !");
-                loadClients(); // Recharge les clients
-            } else {
-                JOptionPane.showMessageDialog(clientsView, "Erreur lors de la modification.", "Erreur", JOptionPane.ERROR_MESSAGE);
+            int id = (int) clientsView.getClientsTable().getValueAt(row, 0);
+            Client client = clientDAO.getClientById(id);
+            
+            if (client != null) {
+                ModifierClientDialog dialog = new ModifierClientDialog(clientsView, client);
+                dialog.setVisible(true);
+                
+                if (dialog.isValidated()) {
+                    String nom = dialog.getNom();
+                    String prenom = dialog.getPrenom();
+                    String societe = dialog.getSociete();
+                    String adresse = dialog.getAdresse();
+                    String codePostal = dialog.getCodePostal();
+                    String ville = dialog.getVille();
+                    String pays = dialog.getPays();
+                    String telephone = dialog.getTelephone();
+                    String email = dialog.getEmail();
+                    
+                    if (clientDAO.updateClientPartiel(id, nom, prenom, societe, adresse, 
+                            codePostal, ville, pays, telephone, email)) {
+                        JOptionPane.showMessageDialog(clientsView, "Client modifié avec succès !");
+                        loadClients();
+                    } else {
+                        JOptionPane.showMessageDialog(clientsView, "Erreur lors de la modification.", 
+                                "Erreur", JOptionPane.ERROR_MESSAGE);
+                    }
+                }
             }
         } else {
             JOptionPane.showMessageDialog(clientsView, "Veuillez sélectionner un client.", "Attention", JOptionPane.WARNING_MESSAGE);

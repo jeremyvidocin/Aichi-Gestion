@@ -205,4 +205,18 @@ public class ArticlesView extends JFrame {
             });
         }
     }
+
+    public int getSelectedRow() {
+        return articlesTable.getSelectedRow();
+    }
+
+    public int getArticleIdFromRow(int row) {
+        DefaultTableModel tableModel = (DefaultTableModel) articlesTable.getModel();
+        return (Integer) tableModel.getValueAt(row, 0);
+    }
+
+    public String getArticleNomFromRow(int row) {
+        DefaultTableModel tableModel = (DefaultTableModel) articlesTable.getModel();
+        return (String) tableModel.getValueAt(row, 2);
+    }
 }

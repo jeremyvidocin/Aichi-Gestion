@@ -168,4 +168,93 @@ public class ClientDAO {
         }
         return false;
     }
+
+    public boolean updateClientPartiel(int id, String nom, String prenom, String societe,
+                                     String adresse, String codePostal, String ville,
+                                     String pays, String telephone, String email) {
+        StringBuilder query = new StringBuilder("UPDATE clients SET ");
+        List<Object> parameters = new ArrayList<>();
+        boolean hasUpdates = false;
+
+        if (nom != null) {
+            if (hasUpdates) query.append(", ");
+            query.append("Nom = ?");
+            parameters.add(nom);
+            hasUpdates = true;
+        }
+
+        if (prenom != null) {
+            if (hasUpdates) query.append(", ");
+            query.append("Prenom = ?");
+            parameters.add(prenom);
+            hasUpdates = true;
+        }
+
+        if (societe != null) {
+            if (hasUpdates) query.append(", ");
+            query.append("Societe = ?");
+            parameters.add(societe);
+            hasUpdates = true;
+        }
+
+        if (adresse != null) {
+            if (hasUpdates) query.append(", ");
+            query.append("Adresse = ?");
+            parameters.add(adresse);
+            hasUpdates = true;
+        }
+
+        if (codePostal != null) {
+            if (hasUpdates) query.append(", ");
+            query.append("CodePostal = ?");
+            parameters.add(codePostal);
+            hasUpdates = true;
+        }
+
+        if (ville != null) {
+            if (hasUpdates) query.append(", ");
+            query.append("Ville = ?");
+            parameters.add(ville);
+            hasUpdates = true;
+        }
+
+        if (pays != null) {
+            if (hasUpdates) query.append(", ");
+            query.append("Pays = ?");
+            parameters.add(pays);
+            hasUpdates = true;
+        }
+
+        if (telephone != null) {
+            if (hasUpdates) query.append(", ");
+            query.append("Telephone = ?");
+            parameters.add(telephone);
+            hasUpdates = true;
+        }
+
+        if (email != null) {
+            if (hasUpdates) query.append(", ");
+            query.append("Email = ?");
+            parameters.add(email);
+            hasUpdates = true;
+        }
+
+        if (!hasUpdates) {
+            return true; // Rien à mettre à jour
+        }
+
+        query.append(" WHERE ID = ?");
+        parameters.add(id);
+
+        try (PreparedStatement stmt = connection.prepareStatement(query.toString())) {
+            for (int i = 0; i < parameters.size(); i++) {
+                stmt.setObject(i + 1, parameters.get(i));
+            }
+            stmt.executeUpdate();
+            return true;
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
 }

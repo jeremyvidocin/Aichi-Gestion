@@ -271,4 +271,134 @@ public class CommandeDAO {
         }
         return commandes;
     }
+
+    public boolean updateCommandePartielle(int id, Integer idClient, String statut, 
+                                         String commentaire, String adresseLivraison,
+                                         List<LigneCommande> lignesCommande) {
+        try {
+            connection.setAutoCommit(false);
+            
+            // Mise à jour des informations générales de la commande
+            StringBuilder query = new StringBuilder("UPDATE commandes SET ");
+            List<Object> parameters = new ArrayList<>();
+            boolean hasUpdates = false;
+            
+            if (idClient != null) {
+                if (hasUpdates) query.append(", ");
+                query.append("ID_Client = ?");
+                parameters.add(idClient);
+                hasUpdates = true;
+            }
+            
+            if (statut != null) {
+                if (hasUpdates) query.append(", ");
+                query.append("Statut = ?");
+                parameters.add(statut);
+                hasUpdates = true;
+            }
+            
+            if (commentaire != null) {
+                if (hasUpdates) query.append(", ");
+                query.append("Commentaire = ?");
+                parameters.add(commentaire);
+                hasUpdates = true;
+            }
+            
+            if (adresseLivraison != null) {
+                if (hasUpdates) query.append(", ");
+                query.append("AdresseLivraison = ?");
+                parameters.add(adresseLivraison);
+                hasUpdates = true;
+            }
+            
+            if (hasUpdates) {
+                query.append(" WHERE ID = ?");
+                parameters.add(id);
+                
+                try (PreparedStatement stmt = connection.prepareStatement(query.toString())) {
+                    for (int i = 0; i < parameters.size(); i++) {
+                        stmt.setObject(i + 1, parameters.get(i));
+                    }
+                    stmt.executeUpdate();
+                }
+            }
+            
+            // Mise à jour des lignes de commande
+            if (lignesCommande != null) {
+                // Supprimer les anciennes lignes
+                String deleteQuery = "DELETE FROM lignes_commande WHERE ID_Commande = ?";
+                try (PreparedStatement stmt = connection.prepareStatement(deleteQuery)) {
+                    stmt.setInt(1, id);
+                    stmt.executeUpdate();
+                }
+                
+                // Ajouter les nouvelles lignes
+                String insertQuery = "INSERT INTO lignes_commande (ID_Commande, ID_Article, Reference, " +
+                                   "Designation, Quantite, PrixUnitaireHT, TauxTVA) VALUES (?, ?, ?, ?, ?, ?, ?)";
+                try (PreparedStatement stmt = connection.prepareStatement(insertQuery)) {
+                    for (LigneCommande ligne : lignesCommande) {
+                        stmt.setInt(1, id);
+                        stmt.setInt(2, ligne.getIdArticle());
+                        stmt.setString(3, ligne.getReference());
+                        stmt.setString(4, ligne.getDesignation());
+                        stmt.setInt(5, ligne.getQuantite());
+                        stmt.setDouble(6, ligne.getPrixUnitaireHT());
+                        stmt.setDouble(7, ligne.getTauxTVA());
+                        stmt.executeUpdate();
+                    }
+                }
+                
+                // Mettre à jour les montants de la commande
+                String updateMontantsQuery = "UPDATE commandes SET " +
+                    "MontantHT = (SELECT SUM(Quantite * PrixUnitaireHT) FROM lignes_commande WHERE ID_Commande = ?), " +
+                    "MontantTVA = (SELECT SUM(Quantite * PrixUnitaireHT * TauxTVA / 100) FROM lignes_commande WHERE ID_Commande = ?), " +
+                    "MontantTTC = (SELECT SUM(Quantite * PrixUnitaireHT * (1 + TauxTVA / 100)) FROM lignes_commande WHERE ID_Commande = ?) " +
+                    "WHERE ID = ?";
+                try (PreparedStatement stmt = connection.prepareStatement(updateMontantsQuery)) {
+                    stmt.setInt(1, id);
+                    stmt.setInt(2, id);
+                    stmt.setInt(3, id);
+                    stmt.setInt(4, id);
+                    stmt.executeUpdate();
+                }
+            }
+            
+            connection.commit();
+            return true;
+        } catch (SQLException e) {
+            try {
+                connection.rollback();
+            } catch (SQLException ex) {
+                ex.printStackTrace();
+            }
+            e.printStackTrace();
+            return false;
+        } finally {
+            try {
+                connection.setAutoCommit(true);
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    public Commande getCommandeById(int id) {
+        String query = "SELECT c.*, cl.Nom as NomClient, u.Nom as NomUtilisateur " +
+                      "FROM commandes c " +
+                      "LEFT JOIN clients cl ON c.ID_Client = cl.ID " +
+                      "LEFT JOIN utilisateurs u ON c.ID_Utilisateur = u.ID " +
+                      "WHERE c.ID = ?";
+        
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setInt(1, id);
+            ResultSet rs = stmt.executeQuery();
+            
+            if (rs.next()) {
+                return createCommandeFromResultSet(rs);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
 }

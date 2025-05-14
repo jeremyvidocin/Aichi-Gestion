@@ -5,9 +5,11 @@ import model.ArticleDAO;
 import model.User;
 import views.ArticlesView;
 import utils.PermissionManager;
-
+import views.ModifierArticleDialog;
+import views.AjouterArticleDialog;
 import javax.swing.*;
 import java.util.List;
+import java.time.LocalDateTime;
 
 public class ArticlesController {
     private ArticlesView articlesView;
@@ -22,9 +24,9 @@ public class ArticlesController {
         loadArticles();
 
         // Ajout des listeners pour les boutons
-        articlesView.getSearchButton().addActionListener(e -> searchArticle());
-        articlesView.getEditButton().addActionListener(e -> editArticle());
+        articlesView.getSearchButton().addActionListener(e -> searchArticles());
         articlesView.getAddButton().addActionListener(e -> addArticle());
+        articlesView.getEditButton().addActionListener(e -> editArticle());
         articlesView.getDeleteButton().addActionListener(e -> deleteArticle());
         articlesView.getBackButton().addActionListener(e -> backMenu());
 
@@ -45,73 +47,154 @@ public class ArticlesController {
         articlesView.updateTable(articles);
     }
 
-    private void searchArticle() {
-        String keyword = articlesView.getSearchField().getText();
+    private void searchArticles() {
+        String keyword = articlesView.getSearchField().getText().trim();
         List<Article> articles = articleDAO.searchArticles(keyword);
         articlesView.updateTable(articles);
     }
 
     private void addArticle() {
         if (!PermissionManager.canAddData(currentUser)) {
-            JOptionPane.showMessageDialog(articlesView, "Vous n'avez pas les permissions nécessaires pour ajouter des articles.", "Permission refusée", JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(articlesView,
+                "Vous n'avez pas les permissions nécessaires pour ajouter des articles.",
+                "Permission refusée",
+                JOptionPane.WARNING_MESSAGE);
             return;
         }
 
-        String nom = JOptionPane.showInputDialog("Nom de l'article :");
-        String description = JOptionPane.showInputDialog("Description de l'article :");
-        double prix = Double.parseDouble(JOptionPane.showInputDialog("Prix de l'article :"));
-        int quantite = Integer.parseInt(JOptionPane.showInputDialog("Quantité en stock :"));
+        AjouterArticleDialog dialog = new AjouterArticleDialog(articlesView);
+        dialog.setVisible(true);
 
-        if (articleDAO.addArticle(nom, description, prix, quantite)) {
-            JOptionPane.showMessageDialog(articlesView, "Article ajouté !");
-            loadArticles();
-        } else {
-            JOptionPane.showMessageDialog(articlesView, "Erreur lors de l'ajout.", "Erreur", JOptionPane.ERROR_MESSAGE);
+        if (dialog.isValidated()) {
+            boolean success = articleDAO.addArticle(
+                dialog.getReference(),
+                dialog.getNom(),
+                dialog.getDescription(),
+                dialog.getCategorie(),
+                dialog.getPrixVente(),
+                dialog.getPrixAchat(),
+                dialog.getQuantiteEnStock(),
+                dialog.getSeuilAlerte()
+            );
+
+            if (success) {
+                JOptionPane.showMessageDialog(articlesView,
+                    "L'article a été ajouté avec succès.",
+                    "Succès",
+                    JOptionPane.INFORMATION_MESSAGE);
+                loadArticles();
+            } else {
+                JOptionPane.showMessageDialog(articlesView,
+                    "Une erreur est survenue lors de l'ajout de l'article.",
+                    "Erreur",
+                    JOptionPane.ERROR_MESSAGE);
+            }
         }
     }
 
-    public void editArticle() {
+    private void editArticle() {
         if (!PermissionManager.canModifyData(currentUser)) {
-            JOptionPane.showMessageDialog(articlesView, "Vous n'avez pas les permissions nécessaires pour modifier des articles.", "Permission refusée", JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(articlesView,
+                "Vous n'avez pas les permissions nécessaires pour modifier des articles.",
+                "Permission refusée",
+                JOptionPane.WARNING_MESSAGE);
             return;
         }
 
-        int row = articlesView.getArticlesTable().getSelectedRow();
-        if (row != -1) {
-            int id = (int) articlesView.getArticlesTable().getValueAt(row, 0);
-            String newName = JOptionPane.showInputDialog("Nouveau nom de l'article :");
-            String newDescription = JOptionPane.showInputDialog("Nouvelle description de l'article :");
-            String newPrix = JOptionPane.showInputDialog("Nouveau prix de l'article :");
-            String newQuantite = JOptionPane.showInputDialog("Nouvelle quantité de l'article:");
+        int selectedRow = articlesView.getSelectedRow();
+        if (selectedRow == -1) {
+            JOptionPane.showMessageDialog(articlesView,
+                "Veuillez sélectionner un article à modifier.",
+                "Sélection requise",
+                JOptionPane.WARNING_MESSAGE);
+            return;
+        }
 
-            if (articleDAO.updateArticle(id, newName, newDescription, newPrix, newQuantite)) {
-                JOptionPane.showMessageDialog(articlesView, "Article modifié !");
+        int articleId = articlesView.getArticleIdFromRow(selectedRow);
+        Article article = articleDAO.getArticleById(articleId);
+
+        if (article == null) {
+            JOptionPane.showMessageDialog(articlesView,
+                "L'article sélectionné n'a pas été trouvé.",
+                "Erreur",
+                JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        ModifierArticleDialog dialog = new ModifierArticleDialog(articlesView, article);
+        dialog.setVisible(true);
+
+        if (dialog.isValidated()) {
+            boolean success = articleDAO.updateArticle(
+                articleId,
+                dialog.getReference(),
+                dialog.getNom(),
+                dialog.getDescription(),
+                dialog.getCategorie(),
+                dialog.getPrixVente(),
+                dialog.getPrixAchat(),
+                dialog.getQuantiteEnStock(),
+                dialog.getSeuilAlerte(),
+                LocalDateTime.now()
+            );
+
+            if (success) {
+                JOptionPane.showMessageDialog(articlesView,
+                    "L'article a été modifié avec succès.",
+                    "Succès",
+                    JOptionPane.INFORMATION_MESSAGE);
                 loadArticles();
             } else {
-                JOptionPane.showMessageDialog(articlesView, "Erreur lors de la modification.", "Erreur", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(articlesView,
+                    "Une erreur est survenue lors de la modification de l'article.",
+                    "Erreur",
+                    JOptionPane.ERROR_MESSAGE);
             }
-        } else {
-            JOptionPane.showMessageDialog(articlesView, "Veuillez sélectionner un Article.", "Attention", JOptionPane.WARNING_MESSAGE);
         }
     }
 
     private void deleteArticle() {
         if (!PermissionManager.canDeleteData(currentUser)) {
-            JOptionPane.showMessageDialog(articlesView, "Vous n'avez pas les permissions nécessaires pour supprimer des articles.", "Permission refusée", JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(articlesView,
+                "Vous n'avez pas les permissions nécessaires pour supprimer des articles.",
+                "Permission refusée",
+                JOptionPane.WARNING_MESSAGE);
             return;
         }
 
-        int row = articlesView.getArticlesTable().getSelectedRow();
-        if (row != -1) {
-            int id = (int) articlesView.getArticlesTable().getValueAt(row, 0);
-            if (articleDAO.deleteArticle(id)) {
-                JOptionPane.showMessageDialog(articlesView, "Article supprimé !");
+        int selectedRow = articlesView.getSelectedRow();
+        if (selectedRow == -1) {
+            JOptionPane.showMessageDialog(articlesView,
+                "Veuillez sélectionner un article à supprimer.",
+                "Sélection requise",
+                JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        int articleId = articlesView.getArticleIdFromRow(selectedRow);
+        String articleNom = articlesView.getArticleNomFromRow(selectedRow);
+
+        int confirmation = JOptionPane.showConfirmDialog(articlesView,
+            "Êtes-vous sûr de vouloir supprimer l'article \"" + articleNom + "\" ?",
+            "Confirmation de suppression",
+            JOptionPane.YES_NO_OPTION,
+            JOptionPane.WARNING_MESSAGE);
+
+        if (confirmation == JOptionPane.YES_OPTION) {
+            boolean success = articleDAO.deleteArticle(articleId);
+
+            if (success) {
+                JOptionPane.showMessageDialog(articlesView,
+                    "L'article a été supprimé avec succès.",
+                    "Succès",
+                    JOptionPane.INFORMATION_MESSAGE);
                 loadArticles();
             } else {
-                JOptionPane.showMessageDialog(articlesView, "Erreur lors de la suppression.", "Erreur", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(articlesView,
+                    "Une erreur est survenue lors de la suppression de l'article.",
+                    "Erreur",
+                    JOptionPane.ERROR_MESSAGE);
             }
-        } else {
-            JOptionPane.showMessageDialog(articlesView, "Veuillez sélectionner un article.", "Attention", JOptionPane.WARNING_MESSAGE);
         }
     }
 
